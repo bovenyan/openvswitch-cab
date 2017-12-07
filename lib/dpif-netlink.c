@@ -1968,7 +1968,10 @@ parse_odp_packet(const struct dpif_netlink *dpif, struct ofpbuf *buf,
         [OVS_PACKET_ATTR_USERDATA] = { .type = NL_A_UNSPEC, .optional = true },
         [OVS_PACKET_ATTR_EGRESS_TUN_KEY] = { .type = NL_A_NESTED, .optional = true },
         [OVS_PACKET_ATTR_ACTIONS] = { .type = NL_A_NESTED, .optional = true },
-        [OVS_PACKET_ATTR_MRU] = { .type = NL_A_U16, .optional = true }
+        [OVS_PACKET_ATTR_MRU] = { .type = NL_A_U16, .optional = true },
+        
+        /* CAB */
+        [OVS_PACKET_ATTR_CAB] = { .type = NL_A_U16, .optional = true }
     };
 
     struct ovs_header *ovs_header;
@@ -2007,6 +2010,7 @@ parse_odp_packet(const struct dpif_netlink *dpif, struct ofpbuf *buf,
     upcall->out_tun_key = a[OVS_PACKET_ATTR_EGRESS_TUN_KEY];
     upcall->actions = a[OVS_PACKET_ATTR_ACTIONS];
     upcall->mru = a[OVS_PACKET_ATTR_MRU];
+    upcall->is_cab = a[OVS_PACKET_ATTR_CAB];
 
     /* Allow overwriting the netlink attribute header without reallocating. */
     dp_packet_use_stub(&upcall->packet,

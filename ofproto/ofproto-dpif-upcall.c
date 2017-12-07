@@ -330,7 +330,7 @@ static enum upcall_type classify_upcall(enum dpif_upcall_type type,
 static int upcall_receive(struct upcall *, const struct dpif_backer *,
                           const struct dp_packet *packet, enum dpif_upcall_type,
                           const struct nlattr *userdata, const struct flow *,
-                          const unsigned int mru,
+                          const unsigned int mru, const unsigned int is_cab,
                           const ovs_u128 *ufid, const unsigned pmd_id);
 static void upcall_uninit(struct upcall *);
 
@@ -727,6 +727,7 @@ recv_upcalls(struct handler *handler)
         struct flow *flow = &flows[n_upcalls];
         unsigned int mru;
         int error;
+        unsigned int is_cab;  // CAB related
 
         ofpbuf_use_stub(recv_buf, recv_stubs[n_upcalls],
                         sizeof recv_stubs[n_upcalls]);
@@ -746,8 +747,16 @@ recv_upcalls(struct handler *handler)
             mru = 0;
         }
 
+        /* Processing CAB */
+        if (dupcall->is_cab) {
+            is_cab = nl_attr_get_u16(dupcall->is_cab);
+        } else {
+            is_cab = 0;
+        }
+
         error = upcall_receive(upcall, udpif->backer, &dupcall->packet,
-                               dupcall->type, dupcall->userdata, flow, mru,
+                               dupcall->type, dupcall->userdata, flow, mru, 
+                               is_cab,
                                &dupcall->ufid, PMD_ID_NULL);
         if (error) {
             if (error == ENODEV) {
@@ -993,10 +1002,15 @@ static int
 upcall_receive(struct upcall *upcall, const struct dpif_backer *backer,
                const struct dp_packet *packet, enum dpif_upcall_type type,
                const struct nlattr *userdata, const struct flow *flow,
-               const unsigned int mru,
+               const unsigned int mru, const unsigned int is_cab,
                const ovs_u128 *ufid, const unsigned pmd_id)
 {
     int error;
+
+    if (is_cab == 7){ // CAB related
+        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(10, 60);
+        VLOG_WARN_RL(&rl, "CAB packet found!!!");
+    }
 
     error = xlate_lookup(backer, flow, &upcall->ofproto, &upcall->ipfix,
                          &upcall->sflow, NULL, &upcall->in_port);
@@ -1024,6 +1038,7 @@ upcall_receive(struct upcall *upcall, const struct dpif_backer *backer,
     upcall->key = NULL;
     upcall->key_len = 0;
     upcall->mru = mru;
+    upcall->is_cab = 0;
 
     upcall->out_tun_key = NULL;
     upcall->actions = NULL;
@@ -1160,7 +1175,7 @@ upcall_cb(const struct dp_packet *packet, const struct flow *flow, ovs_u128 *ufi
     atomic_read_relaxed(&udpif->flow_limit, &flow_limit);
 
     error = upcall_receive(&upcall, udpif->backer, packet, type, userdata,
-                           flow, 0, ufid, pmd_id);
+                           flow, 0, 0, ufid, pmd_id);
     if (error) {
         return error;
     }

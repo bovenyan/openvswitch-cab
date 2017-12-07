@@ -126,6 +126,7 @@ struct dp_upcall_info {
 	u32 portid;
 	u8 cmd;
 	u16 mru;
+    u16 is_cab;     /* Bo padded for CAB */
 };
 
 /**

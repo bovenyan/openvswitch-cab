@@ -281,6 +281,7 @@ void ovs_dp_process_packet(struct sk_buff *skb, struct sw_flow_key *key)
 		upcall.cmd = OVS_PACKET_CMD_MISS;
 		upcall.portid = ovs_vport_find_upcall_portid(p, skb);
 		upcall.mru = OVS_CB(skb)->mru;
+        upcall.is_cab = 7;
 		error = ovs_dp_upcall(dp, skb, key, &upcall);
 		if (unlikely(error))
 			kfree_skb(skb);
@@ -410,6 +411,10 @@ static size_t upcall_msg_size(const struct dp_upcall_info *upcall_info,
 	if (upcall_info->mru)
 		size += nla_total_size(sizeof(upcall_info->mru));
 
+	/* OVS_PACKET_ATTR_CAB */
+	if (upcall_info->is_cab)
+		size += nla_total_size(sizeof(upcall_info->is_cab));
+
 	return size;
 }
 
@@ -528,6 +533,16 @@ static int queue_userspace_packet(struct datapath *dp, struct sk_buff *skb,
 		pad_packet(dp, user_skb);
 	}
 
+	/* Add OVS_PACKET_ATTR_CAB */
+	if (upcall_info->is_cab) {
+		if (nla_put_u16(user_skb, OVS_PACKET_ATTR_CAB,
+				upcall_info->is_cab)) {
+			err = -ENOBUFS;
+			goto out;
+		}
+		pad_packet(dp, user_skb);
+	}
+
 	/* Only reserve room for attribute header, packet data is added
 	 * in skb_zerocopy()
 	 */
@@ -572,6 +587,7 @@ static int ovs_packet_cmd_execute(struct sk_buff *skb, struct genl_info *info)
 	int len;
 	int err;
 	bool log = !a[OVS_PACKET_ATTR_PROBE];
+    u16 is_cab = 0;  // CAB related 
 
 	err = -EINVAL;
 	if (!a[OVS_PACKET_ATTR_PACKET] || !a[OVS_PACKET_ATTR_KEY] ||
@@ -605,6 +621,8 @@ static int ovs_packet_cmd_execute(struct sk_buff *skb, struct genl_info *info)
 		packet->ignore_df = 1;
 	}
 	OVS_CB(packet)->mru = mru;
+
+    /* reserved for CAB */
 
 	/* Build an sw_flow for sending this packet. */
 	flow = ovs_flow_alloc();
@@ -667,6 +685,7 @@ static const struct nla_policy packet_policy[OVS_PACKET_ATTR_MAX + 1] = {
 	[OVS_PACKET_ATTR_ACTIONS] = { .type = NLA_NESTED },
 	[OVS_PACKET_ATTR_PROBE] = { .type = NLA_FLAG },
 	[OVS_PACKET_ATTR_MRU] = { .type = NLA_U16 },
+	[OVS_PACKET_ATTR_CAB] = { .type = NLA_U16 },
 };
 
 static struct genl_ops dp_packet_genl_ops[] = {
