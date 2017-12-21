@@ -186,6 +186,8 @@ struct upcall {
     uint16_t mru;                  /* If !0, Maximum receive unit of
                                       fragmented IP packet */
 
+    unsigned int is_cab;           // CAB related
+
     enum dpif_upcall_type type;    /* Datapath type of the upcall. */
     const struct nlattr *userdata; /* Userdata for DPIF_UC_ACTION Upcalls. */
     const struct nlattr *actions;  /* Flow actions in DPIF_UC_ACTION Upcalls. */
